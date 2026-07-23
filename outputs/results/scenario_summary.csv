@@ -1,0 +1,5 @@
+scenario,scenario_label,days,total_demand,total_shipped,total_unmet,total_miles,total_ship_cost,total_fixed_cost,avg_fcs_open,avg_storage_util,avg_solve_sec,miles_per_unit,ship_cost_per_unit,total_cost,landed_cost_per_unit,fill_rate,service_level,miles_vs_baseline_pct,cost_vs_baseline_pct,service_vs_baseline_pp
+S1_nearest_fc,Baseline: Nearest FC,16,260016.0,254872.0,5144.0,68589851.0,1872042.88,1248000,6.0,2.75625,0.0,269.1,7.345,3120042.88,12.242,0.9802,0.9376,0.0,0.0,0.0
+S2_cost_min,Cost-Minimizing MIP,16,260016.0,249432.0,10584.0,72864096.0,1869594.21,972000,4.5625,2.85,1.42,292.1,7.495,2841594.21,11.392,0.9593,0.9494,8.55,-6.94,1.18
+S3_service_constrained,Service-Constrained MIP,16,260016.0,249420.0,10596.0,72846131.0,1869397.24,972000,4.5625,2.85,1.33375,292.1,7.495,2841397.24,11.392,0.9592,0.9494,8.55,-6.94,1.18
+S4_pooled_forward,Pooled Inventory + Forward Positioning,16,260016.0,247741.0,12275.0,69393806.0,1835554.19,976500,4.5625,2.825,1.3875,280.1,7.409,2812054.19,11.351,0.9528,0.9524,4.09,-7.28,1.48
