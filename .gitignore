@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+
+# Virtual environment
+venv/
+env/
+ENV/
+.venv
+
+# Data — regenerable from source, keeps the repo small
+data/raw/*.csv
+data/processed/*.csv
+
+# Solver artifacts
+*.lp
+*.mps
+*.sol
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# Jupyter
+.ipynb_checkpoints/
