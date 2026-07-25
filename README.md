@@ -11,6 +11,12 @@ Everything runs in Python. The engine uses mathematical optimization. The agent 
 
 ---
 
+## The whole project at a glance
+
+![Project overview](outputs/figures/project_flowchart.png)
+
+---
+
 ## Why this problem is harder than it looks
 
 A two-day delivery promise seems simple from the customer's side. Behind the scenes, several decisions have to line up at the same time:
@@ -53,16 +59,6 @@ The network has no warehouse in the Pacific Northwest, so Seattle and Portland s
 ![FC coverage](outputs/figures/fc_coverage.png)
 
 The lesson is that the real constraint was **where the warehouses are**, not how orders get routed. That is the kind of finding that changes a business decision, like whether to build a new warehouse, rather than just tuning software.
-
----
-
-## How the whole thing works
-
-![Architecture](outputs/figures/architecture.png)
-
-A contractor sends a plain-English request. The AI agent reads it, pulls out the products and quantities, and calls the sourcing tool. The sourcing tool matches each vague description to a real catalog product, checks inventory across the six warehouses, and runs the optimization engine to produce a plan. The agent reads that plan back to the customer. Everything is exposed over a web API.
-
-There is one rule the whole design follows: **the AI never does the math.** Language models are not reliable at arithmetic or hard constraints, so the agent only handles language and decides when to call the optimizer. The actual optimization is done by a proper solver behind a clean boundary. That is how you build an AI assistant that has to hand back numbers people can trust.
 
 ---
 
