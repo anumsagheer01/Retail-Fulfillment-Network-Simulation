@@ -54,12 +54,19 @@ class FulfillmentOptimizer:
     """
 
     def __init__(self, lanes, inventory, demand, enforce_service=True,
-                 service_target=SERVICE_LEVEL_TARGET):
+                 service_target=SERVICE_LEVEL_TARGET, fixed_cost_scale=1.0):
+        # fixed_cost_scale multiplies FC daily fixed cost. The network study
+        # uses 1.0 because it decides which buildings to run for a whole day.
+        # The single-order sourcing tool uses 0.0 because the buildings are
+        # already open and running; a lone Pro's order should be priced on
+        # marginal shipping and handling, not charged a full day of a
+        # warehouse's rent.
         self.lanes = lanes
         self.inventory = inventory
         self.demand = demand
         self.enforce_service = enforce_service
         self.service_target = service_target
+        self.fixed_cost_scale = fixed_cost_scale
 
         self.fcs = sorted(FULFILLMENT_CENTERS.keys())
         self.regions = sorted(demand["region_id"].unique())
@@ -136,7 +143,7 @@ class FulfillmentOptimizer:
             self.cost[(f, r)] * x[(f, r, s)] for (f, r, s) in valid_keys
         )
         fixed = pulp.lpSum(
-            FULFILLMENT_CENTERS[f]["fixed_cost_per_day"] * y[f]
+            self.fixed_cost_scale * FULFILLMENT_CENTERS[f]["fixed_cost_per_day"] * y[f]
             for f in self.fcs
         )
         late = pulp.lpSum(
