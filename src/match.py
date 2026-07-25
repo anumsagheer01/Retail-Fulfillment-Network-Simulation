@@ -134,6 +134,79 @@ def _category_prior(query_tokens, product):
         return 0.08
     return 0.0
 
+def _structured_numerics(text):
+    """
+    Extract only structured, discriminating numeric tokens: fractions, wire
+    specs, dimensions, and r-values. Bare integers are deliberately excluded
+    from conflict detection because they are too ambiguous, a length, a count,
+    or a fragment of a fraction, and comparing them produces false conflicts.
+    Each token is returned tagged with its family so only like is compared
+    with like.
+    """
+    t = text.lower()
+    out = set()
+    for frac in re.findall(r"\d+/\d+", t):
+        dec = _fraction_to_decimal(frac)
+        out.add(("frac", dec if dec else frac))
+    for wire in re.findall(r"\b\d+[-/]\d+\b", t):
+        # only treat as a wire spec if it is not a plain fraction already caught
+        norm = wire.replace("/", "-")
+        if "/" not in wire:
+            out.add(("wire", norm))
+    for dim in re.findall(r"\d+x\d+", t):
+        out.add(("dim", dim))
+    for r in re.findall(r"r-?(\d+)", t):
+        out.add(("rval", r))
+    return out
+
+
+def _attribute_conflict(query, product):
+    """
+    Penalize when the query specifies a structured numeric attribute (size,
+    gauge, dimension, r-value) and the product carries a conflicting value in
+    the same family.
+
+    Only structured numerics are compared, and only within the same family, so
+    a query size of 3/4 conflicts with a stocked size of 1/2 but a length of
+    250 never conflicts with a size of 0.5. This is what lets the matcher
+    decline "3/4 copper elbow" while still matching "1/2 cu ell". Returns a
+    negative number, or 0 when there is no conflict.
+    """
+    q = _structured_numerics(query)
+    if not q:
+        return 0.0
+
+    # Product attributes, read into the same tagged form. Sizes are stored as
+    # decimals; convert them to the "frac" family value space.
+    attr = product["attributes"]
+    p = set()
+    for k, v in attr.items():
+        sv = str(v).lower()
+        if isinstance(v, float) or re.fullmatch(r"\d+\.\d+", sv):
+            p.add(("frac", ("%g" % float(v))))
+        for dim in re.findall(r"\d+x\d+", sv):
+            p.add(("dim", dim))
+    # Wire gauge/conductors and r-value live in named attribute keys.
+    if "gauge" in attr and "conductors" in attr:
+        p.add(("wire", f"{attr['gauge']}-{attr['conductors']}"))
+    if "r_value" in attr:
+        p.add(("rval", str(attr["r_value"])))
+    if "nominal" in attr:
+        for dim in re.findall(r"\d+x\d+", str(attr["nominal"]).lower()):
+            p.add(("dim", dim))
+
+    p_by_fam = {}
+    for fam, val in p:
+        p_by_fam.setdefault(fam, set()).add(val)
+
+    conflicts = 0
+    for fam, val in q:
+        peers = p_by_fam.get(fam)
+        if peers and val not in peers:
+            conflicts += 1
+
+    return -0.45 * min(conflicts, 2)
+
 
 def score_query(query, top_k=3):
     """
@@ -163,13 +236,15 @@ def score_query(query, top_k=3):
         product = CATALOG[sku_id]
         attr = _attribute_bonus(q_facets, product)
         cat = _category_prior(q_tokens, product)
-        score = min(comp["_lex"] + attr + cat, 1.0)
+        conflict = _attribute_conflict(query, product)
+        score = max(min(comp["_lex"] + attr + cat + conflict, 1.0), 0.0)
         results.append({
             "sku_id": sku_id,
             "name": product["name"],
             "score": round(score, 3),
             "lexical": round(comp["_lex"], 3),
             "attribute_bonus": round(attr, 3),
+            "attribute_conflict": round(conflict, 3),
             "category_prior": round(cat, 3),
             "matched_on": comp["_surface"],
         })
@@ -178,7 +253,8 @@ def score_query(query, top_k=3):
     return results[:top_k]
 
 
-def resolve_line_item(query, accept_threshold=0.45, ambiguous_gap=0.12):
+def resolve_line_item(query, accept_threshold=0.45, ambiguous_gap=0.12,
+                      leader_floor=0.32, leader_margin=0.15):
     """
     Turn a raw query into a resolution decision.
 
@@ -187,17 +263,38 @@ def resolve_line_item(query, accept_threshold=0.45, ambiguous_gap=0.12):
       sku_id : the chosen SKU when matched
       candidates : the ranked list, always included for auditing
 
-    The two thresholds encode a real product decision. accept_threshold is how
-    confident the top candidate must be to auto-accept. ambiguous_gap is how far
-    ahead of the runner-up it must be; a narrow gap means two products fit almost
-    equally and the agent should ask the Pro to clarify rather than guess.
-    Guessing wrong on a B2B sourcing quote is worse than asking.
+    Acceptance uses two paths, because absolute score alone is too blunt:
+
+      1. High-confidence: the top score clears accept_threshold outright.
+      2. Confident leader: the top score clears a lower leader_floor AND beats
+         the runner-up by at least leader_margin. A sparse but unambiguous
+         query like "electrical wire" scores moderately in absolute terms yet
+         sits far ahead of everything else; declining it would be wrong. The
+         margin is what licenses trusting a moderate score.
+
+    ambiguous_gap governs the opposite case: when the top two are within a hair
+    of each other, two products fit almost equally and the matcher should ask
+    the Pro rather than guess. Guessing wrong on a B2B quote is worse than
+    asking.
     """
     cands = score_query(query, top_k=3)
-    if not cands or cands[0]["score"] < accept_threshold:
+    if not cands:
         return {"status": "no_match", "sku_id": None, "candidates": cands}
 
-    if len(cands) > 1 and (cands[0]["score"] - cands[1]["score"]) < ambiguous_gap:
+    top = cands[0]["score"]
+    runner = cands[1]["score"] if len(cands) > 1 else 0.0
+    gap = top - runner
+
+    high_confidence = top >= accept_threshold
+    confident_leader = top >= leader_floor and gap >= leader_margin
+
+    if not (high_confidence or confident_leader):
+        return {"status": "no_match", "sku_id": None, "candidates": cands}
+
+    # A near-tie between the top two is ambiguous. This only applies on the
+    # high_confidence path; a confident_leader already requires a wide margin,
+    # so it cannot be ambiguous by construction.
+    if high_confidence and len(cands) > 1 and gap < ambiguous_gap:
         return {"status": "ambiguous", "sku_id": None, "candidates": cands}
 
     return {"status": "matched", "sku_id": cands[0]["sku_id"],
