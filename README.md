@@ -11,9 +11,47 @@ Everything runs in Python. The engine uses mathematical optimization. The agent 
 
 ---
 
+## First, in plain words: what is this and why does it matter?
+
+**What is "sourcing" and "fulfillment"?**
+When you order something online, a company has to answer two questions behind the scenes. *Sourcing* is deciding which of its products match what you asked for. *Fulfillment* is deciding which warehouse ships them to you, and how, so they arrive on time and at low cost. Big retailers run huge operations teams and software to make these decisions millions of times a day.
+
+**Why add an AI assistant?**
+Regular shoppers click on exact products, so the sourcing step is easy. But professional customers, like contractors, electricians, and plumbers, do not shop that way. They show up with a messy list: "I need a couple hundred studs, some half inch copper elbows, a few rolls of romex, and paint, delivered to my job site by Thursday." Turning that vague, human list into exact products, checking what is in stock, and building a delivery plan normally takes a sales rep a lot of back and forth. The AI assistant does it in seconds. The contractor talks the way they normally would, and the assistant handles the rest.
+
+**What does the AI assistant actually do?**
+- Reads a plain-English request and figures out each product the person means.
+- Handles trade shorthand, abbreviations, and typos ("1/2 cu ell" means a half inch copper elbow).
+- Checks inventory across all the warehouses.
+- Runs the optimization engine to find the cheapest plan that still hits the two-day delivery promise.
+- Writes back a clear plan: which products, from which warehouses, at what cost, by when.
+- Asks a clarifying question instead of guessing when a request is unclear, because a wrong order on a job site is expensive.
+
+**Who would use this, and where?**
+This kind of system fits any business that sells to professional or bulk buyers rather than one-item-at-a-time shoppers. Think home-improvement and building-supply retailers (the example used here), industrial and electrical distributors, plumbing and HVAC suppliers, auto-parts wholesalers, restaurant and food-service suppliers, and medical or lab supply companies. Anywhere a customer arrives with a long, messy list of items and a deadline, this pattern applies.
+
+**What jobs does it make easier?**
+- **Sales reps** stop spending hours translating a customer's rough list into a formal quote.
+- **Supply chain and operations teams** get routing decisions that are optimized rather than guessed.
+- **The customer** gets an instant, accurate answer instead of waiting a day for a callback.
+
+In short: the optimization engine is the kind of tool a supply chain team uses to run a delivery network efficiently, and the AI assistant is the kind of tool that turns a slow, manual quoting process into an instant self-serve one.
+
+---
+
 ## The whole project at a glance
 
 ![Project overview](outputs/figures/project_flowchart.png)
+
+**How to read this diagram, top to bottom:**
+
+The blue and peach boxes at the top are **the optimization engine** (Parts 1 to 5). It starts by building a realistic year of order data, maps out the cost and delivery time between warehouses and cities, then uses a mathematical model to decide the best way to route every order. The yellow box shows its result: 8.4% fewer shipping miles while still hitting 95% two-day delivery.
+
+The purple boxes in the middle are **the AI assistant** (Parts 6 and 7). A contractor speaks in plain English, the system matches their words to real products, and an AI agent calls the engine as a tool to build a plan. The pink box on the right, "What it looks like in use," is a real example: a contractor asks for 40 half inch copper elbows to Atlanta, and the assistant instantly returns the sourcing plan (sourced from the Atlanta and Joliet warehouses, $1,204, 100% two-day delivery). That is the whole point of the project shown in one exchange: a rough spoken request in, a costed and optimized plan out, in seconds instead of hours.
+
+The green box at the bottom is **the evaluation** (Part 8), where the matching layer was tested honestly on hard examples and improved based on what the test revealed.
+
+One rule runs through the whole design: **the AI handles the language, the solver handles the math.** Language models are not reliable at arithmetic or hard constraints, so the AI only understands the request and decides when to call the engine. The actual optimization is done by a proper solver. That is how you get an assistant that gives numbers people can trust.
 
 ---
 
