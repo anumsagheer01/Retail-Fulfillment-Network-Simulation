@@ -49,7 +49,7 @@ The purple boxes in the middle are the AI assistant (Parts 6 and 7). A contracto
 
 The green box at the bottom is the evaluation (Part 8), where the matching layer was tested on hard examples and improved based on what the test exposed.
 
-One rule runs through the whole design: the AI handles the language, the solver handles the math. Language models are not reliable at arithmetic or hard constraints, so the AI only reads the request and decides when to call the engine. The actual optimization is done by a proper solver. That is how you get an assistant whose numbers people can trust.
+One rule runs through the whole design: the AI handles the language, the solver handles the math. Language models are not reliable at arithmetic or hard constraints, so the AI only reads the request and decides when to call the engine. The actual optimization is done by a proper solver. 
 
 ---
 
@@ -124,13 +124,13 @@ The bridge to the AI half. A contractor types "half inch copper elbow," not a pr
 The AI agent uses the Anthropic API to read a plain-English request, call the sourcing tool, keep track of the conversation across turns, and record a trace of what it did. FastAPI exposes all of it over the web with proper endpoints. It also has an offline mode that needs no API key, so the tests run anywhere.
 
 ### Part 8: Evaluating the matcher (`eval_dataset.py`, `eval_matcher.py`)
-Covered in full detail in the next section.
+More deatils in the next section.
 
 ---
 
 ## How the matcher was evaluated, and what the numbers mean
 
-The matching layer is the part most likely to fail quietly, so it got a proper evaluation instead of a "looks fine to me."
+The matching layer is the part most likely to fail quietly, so it got a proper evaluation.
 
 **How the test set was built.**
 I hand-wrote 40 test queries, each labeled with the product it should map to and whether the matcher should confidently match it, ask a clarifying question, or refuse it. The queries were written to be hard on purpose. There is no point testing a matcher on the exact product names it already knows, because that only proves it can copy its own catalog. So the set is full of the messy things a real contractor types:
@@ -153,18 +153,17 @@ I hand-wrote 40 test queries, each labeled with the product it should map to and
 Top-1 and top-3 measure whether it finds the right answer. Precision and correct-declines measure whether it knows when to say no. For a business tool, knowing when to say no is the important half, because shipping the wrong part to a job site is far more costly than asking one extra question.
 
 **The failure the evaluation caught, and how it was fixed.**
-The first version of the matcher scored badly on the wrong-variant traps. It was only correctly refusing about **36%** of them. When someone asked for a "3/4 copper elbow" and only the 1/2 inch existed, the matcher confidently matched it to the 1/2 inch, because the two share every word except the size. In a real business this is a serious failure. It would quietly ship the wrong part.
+The first version of the matcher scored badly on the wrong-variant traps. It was only correctly refusing about **36%** of them. When someone asked for a "3/4 copper elbow" and only the 1/2 inch existed, the matcher confidently matched it to the 1/2 inch, because the two share every word except the size. In a real business this is a serious failure. It would ship the wrong part.
 
 The reason was that the matcher rewarded matching words but never noticed a conflicting number. "3/4" and "1/2" are both just tokens to a word-matching system. So I added a check that reads the sizes and gauges out of the query and compares them to the product's actual specs. If the query clearly names a size, gauge, or other spec that does not match the product, the match gets heavily penalized. After that change, correct declines rose from **36% to 57%**, while top-1 accuracy stayed at 96%.
 
-**The honest ceiling.**
-Fifty-seven percent is not perfect, and I stopped there on purpose. The queries it still gets wrong are ones like "exterior door" matching an interior door, where the difference is a word, not a number, so a size-checking rule cannot catch it. Pushing past this point would need a semantic model (something that understands that interior and exterior are opposites), not more hand-written rules. Adding more special cases just to score higher on my own test set would be gaming the number rather than genuinely improving the matcher, so the limitation is documented instead of hidden.
+The queries it still gets wrong are ones like "exterior door" matching an interior door, where the difference is a word, not a number, so a size-checking rule cannot catch it. Pushing past this point would need a semantic model (something that understands that interior and exterior are opposites), not more hand-written rules. Adding more special cases just to score higher on my own test set would be gaming the number rather than genuinely improving the matcher, so the limitation is documented instead of hidden.
 
 ---
 
 ## Some problems I hit along the way
 
-Nothing about this worked on the first try. A few of the more useful bugs and how they got fixed:
+A few of the more useful bugs and how they got fixed:
 
 **The optimizer quoted a total failure on small orders.**
 When I first ran a single contractor's order through the engine, it said it could not fill anything. It turned out the engine was correct but was answering the wrong question. It included each warehouse's full daily running cost, so for one small order it decided the cheapest option was to ship nothing and eat the penalty, rather than "pay a whole day of warehouse rent" for a handful of items. That is the right answer when you are deciding whether to run a warehouse for a full day, but wrong for a single live order where the warehouse is already open. The fix was a switch that turns off the daily fixed cost for single-order quotes, so they are priced only on the actual cost of shipping. Same engine, but now it answers the right question depending on the situation.
@@ -265,7 +264,7 @@ The tests check real properties, like the fact that adding a constraint can neve
 
 ---
 
-## Honest limitations
+## Limitations
 
 - **The data is synthetic.** It is built to match the shape of real demand, and the logic runs unchanged on real data with the same structure, but the specific numbers are illustrative.
 - **Each day is solved on its own.** Inventory does not carry from one day to the next. A production version would connect the days together.
